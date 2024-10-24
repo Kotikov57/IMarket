@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"gorm.io/driver/postgres"
     "gorm.io/gorm"
+	"log"
 )
 
 type Product struct {
@@ -42,7 +43,13 @@ func InOrders(id int, orders []Order) int { // InOrders возвращает п�
 var db *gorm.DB
 
 func main() {
-	dsn := "host=localhost user=postgres password=fkla5283 dbname=postgres port=5432 sslmode=disable TimeZone=Asia/Shanghai"
+	dsn := "host=localhost user=postgres password=fkla5283 dbname=postgres port=5432 sslmode=disable TimeZone=Europe/Moscow"
+	var err error
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	if err != nil {
+		log.Fatal("Failed to connect to database:", err)
+	}
+	db.AutoMigrate(&Product{})
 	router := gin.Default()
 	products := []Product{
 		{1, "Utyug", 175.0, 5},
