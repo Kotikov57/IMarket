@@ -1,4 +1,3 @@
-SELECT ord.*
-FROM imarket_schema.orders ord,
-     imarket_schema.products prod
-WHERE prod.id = ord.product_id
+-- SELECT * FROM "products";
+-- SELECT current_database()
+SELECT inet_server_addr()
