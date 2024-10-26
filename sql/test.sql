@@ -1,3 +1,2 @@
--- SELECT * FROM "products";
--- SELECT current_database()
-SELECT inet_server_addr()
+ALTER TABLE imarket_db.public.products
+ADD CONSTRAINT unique_products_name UNIQUE (name);
