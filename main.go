@@ -8,7 +8,7 @@ import (
 	"log"
 //	"fmt"
 	"errors"
-	"github.com/go-playground/validator/v10"
+//	"github.com/go-playground/validator/v10"
 )
 
 type Product struct { // Product структура продукта
@@ -23,6 +23,22 @@ type Order struct { // Order структура заказа
 	ProductID int `json:"product_id"`
 	Quantity int `json:"quantity" binding:"required,gt=0"`
 	Status string `json:"status" binding:"required"`
+}
+
+type User struct {
+	ID int `json:"id"`
+	FirstName string `json:"first_name"`
+	LastName string `json:"last_name"`
+	Address string `json:"address"`
+	Login string `json:"login"`
+	Password string `json:"password"`
+}
+
+type UserRequest struct {
+	ID int `json:"id"`
+	FirstName string `json:"first_name"`
+	LastName string `json:"last_name"`
+	Address string `json:"address"`
 }
 
 func getProducts(c *gin.Context) { // getProducts возвращает список всех продуктов
@@ -166,7 +182,7 @@ func postOrder(c *gin.Context) { // postOrder добавляет новый за
 		})
 }
 
-func getOrder(c *gin.Context){ // getOrder возвращает данные о заказе по его ID
+func getOrder(c *gin.Context) { // getOrder возвращает данные о заказе по его ID
 	var order Order
 	idParam := c.Param("id")
 	id, err := strconv.Atoi(idParam)
@@ -186,7 +202,7 @@ func getOrder(c *gin.Context){ // getOrder возвращает данные о 
 	c.JSON(200, order)
 }
 
-func putOrder(c *gin.Context){ // putOrder обновляет данные о заказе
+func putOrder(c *gin.Context) { // putOrder обновляет данные о заказе
 	idParam := c.Param("id")
 	id, err := strconv.Atoi(idParam)
 	if err != nil {
@@ -231,6 +247,92 @@ func deleteOrder(c *gin.Context) { // deleteOrder удаляет заказ
 	c.JSON(200, gin.H{"message": "Order deleted"})
 }
 
+func getUsers(c *gin.Context) { // getUsers возвращает данные о пользователях
+	var users []UserRequest
+	db.Model(&UserRequest{}).Select("id","first_name","last_name","address").Scan(&users)
+	c.JSON(200, users)
+}
+
+func postUser(c *gin.Context) { // postUser добавляет нового пользователя
+	var newUser User
+	if err := c.ShouldBindJSON(&newUser); err != nil {
+		c.JSON(400, gin.H {"error": err.Error()})
+		return
+	}
+	result := db.Create(&newUser)
+	if result.Error != nil {
+		c.JSON(500, gin.H{"error": result.Error.Error()})
+		return
+	}
+	c.JSON(200, gin.H{
+		"message" : "User post succesfully",
+//		"user" : newUser,
+	})
+}
+
+func getUser(c *gin.Context) { // getUser возвращает данные о пользователе по его ID
+	var user User
+	idParam := c.Param("id")
+	id, err := strconv.Atoi(idParam)
+	if err != nil {
+		c.JSON(400, gin.H{"error": "Invalid user ID"})
+		return
+	}
+	result := db.Find(&user, id)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			c.JSON(404, gin.H{"error": "User not found"})
+		} else {
+			c.JSON(500, gin.H{"error": result.Error.Error()})
+		}
+		return
+	}
+	c.JSON(200, user)
+}
+
+func putUser(c *gin.Context) { // putUser обновляет данные о пользователе
+	idParam := c.Param("id")
+	id, err := strconv.Atoi(idParam)
+	if err != nil {
+		c.JSON(400, gin.H{"error": "Invalid user ID"})
+		return
+	} 
+	var updatedUser User
+	if err := c.ShouldBindJSON(&updatedUser); err != nil {
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+	result := db.Model(&updatedUser).Where("id = ?",id).Updates(updatedUser)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			c.JSON(404, gin.H{"error": "User not found"})
+			return
+		}
+		c.JSON(500, result.Error.Error())
+		return
+	}
+	c.JSON(200, gin.H{"message": "User succesfully updated"})
+}
+
+func deleteUser(c *gin.Context) { // deleteUser удаляет пользователя
+	idParam := c.Param("id")
+	id, err := strconv.Atoi(idParam)
+	if err != nil {
+		c.JSON(400, gin.H{"error" : "Invalid user ID"})
+		return
+	}
+	result := db.Delete(&User{}, id)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			c.JSON(404, gin.H{"error": "User not found"})
+		} else {
+			c.JSON(500, gin.H{"error": result.Error.Error()})
+		}
+		return
+	}
+	c.JSON(200, gin.H{"message": "User deleted"})
+}
+
 /* func statusValidator(fl validator.FieldLevel) bool {
 	status := fl.Field().String()
 	return validStatuses[status]
@@ -246,7 +348,7 @@ func isValidStatus(status string) bool {
 }
 
 var db *gorm.DB
-var validate *validator.Validate
+// var validate *validator.Validate
 var validStatuses = map[string]bool{
 	"pending": true,
 	"shipped": true,
@@ -275,6 +377,11 @@ func main() {
 	router.GET("/orders/:id", getOrder)
 	router.PUT("/orders/:id", putOrder)
 	router.DELETE("/orders/:id", deleteOrder)
+	router.GET("/users", getUsers)
+	router.POST("/users", postUser)
+	router.GET("/users/:id", getUser)
+	router.PUT("/users/:id", putUser)
+	router.DELETE("/users/:id", deleteUser)
 
 	router.Run(":8080")
 }

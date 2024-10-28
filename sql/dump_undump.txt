@@ -1,0 +1,5 @@
+pg_dump -U postgres -s -d imarket_db > schema.sql
+pg_dump -U postgres -a -d imarket_db > data.sql
+
+psql -U postgres -d imarket_db -f schema.sql
+psql -U postgres -d imarket_db -f data.sql

@@ -1,2 +1,3 @@
 curl -X POST http://localhost:8080/products -H "Content-Type: application/json" -d "{\"id\":7,\"name\":\"Utyug\",\"price\":10,\"quantity\":1}"
-curl -X POST http://localhost:8080/orders -H "Content-Type: application/json" -d "{\"id\":7,\"product_id\":1",\"quantity\":10,\"status\":\"shipped\"}"
+curl -X POST http://localhost:8080/orders -H "Content-Type: application/json" -d "{\"id\":7,\"product_id\":1,\"quantity\":10,\"status\":\"shipped\"}"
+curl -X POST http://localhost:8080/users -H "Content-Type: application/json" -d "{\"id\":6,\"first_name\":\"Eduardo\",\"last_name\":\"Garcia\",\"address\":\"Coconut street, 11\",\"login\":\"sniff_sniff\",\"password\":\"babababebebe\"}"
