@@ -6,10 +6,20 @@ import (
 	"gorm.io/driver/postgres"
     "gorm.io/gorm"
 	"log"
-//	"fmt"
 	"errors"
-//	"github.com/go-playground/validator/v10"
+	"time"
+	"github.com/golang-jwt/jwt/v4"
+	"strings"
 )
+
+var db *gorm.DB
+var validStatuses = map[string]bool{
+	"pending": true,
+	"shipped": true,
+	"delivered": true,
+	"cancelled": true,
+}
+var jwtSecret = []byte("your_secret_key")
 
 type Product struct { // Product структура продукта
 	ID int `json:"id" gorm:"primaryKey"`
@@ -22,23 +32,80 @@ type Order struct { // Order структура заказа
 	ID int `json:"id"`
 	ProductID int `json:"product_id"`
 	Quantity int `json:"quantity" binding:"required,gt=0"`
+	Address string `json:"address"`
+	UserID int `json:"user_id"`
 	Status string `json:"status" binding:"required"`
 }
 
-type User struct {
+type User struct { // User структура данных о пользователе
 	ID int `json:"id"`
 	FirstName string `json:"first_name"`
 	LastName string `json:"last_name"`
-	Address string `json:"address"`
-	Login string `json:"login"`
+	Email string `json:"email"`
 	Password string `json:"password"`
 }
 
-type UserRequest struct {
-	ID int `json:"id"`
-	FirstName string `json:"first_name"`
-	LastName string `json:"last_name"`
-	Address string `json:"address"`
+func GenerateJWT(userID int) (string, error) { // GenerateJWT генерирует уникальный JWT
+	claims := jwt.MapClaims{
+		"userID": userID,
+		"exp":    time.Now().Add(time.Hour * 24).Unix(),
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString(jwtSecret)
+}
+
+func AuthMiddleware() gin.HandlerFunc { // AuthMiddleware проверяет корректность запроса с авторизацией и корректность ключа
+	return func(c *gin.Context) {
+		authHeader := c.GetHeader("Authorization")
+		if authHeader == "" {
+			c.JSON(401, gin.H{"error": "Authorization header missing"})
+			c.Abort()
+			return
+		}
+
+		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
+		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+			return jwtSecret, nil
+		})
+
+		if err != nil || !token.Valid {
+			c.JSON(401, gin.H{"error": "Invalid or expired token"})
+			c.Abort()
+			return
+		}
+
+		claims, _ := token.Claims.(jwt.MapClaims)
+		c.Set("userID", claims["userID"])
+		c.Next()
+	}
+}
+
+func LoginHandler(c *gin.Context) { // LoginHandler генерирует ключ для конкретного пользователя
+	var loginData struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+	var users []User
+	if err := c.BindJSON(&loginData); err != nil {
+		c.JSON(400, gin.H{"error": "Invalid request"})
+		return
+	}
+
+	result := db.Select("id").Where("email = ? AND password = ?", loginData.Email, loginData.Password).Find(&users)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			c.JSON(404, gin.H{"error": "User not found"})
+			return
+		}
+		c.JSON(500, gin.H{"error" : result.Error.Error()})
+	}
+	token, err := GenerateJWT(users[0].ID)
+	if err != nil {
+		c.JSON(500, gin.H{"error": "Failed to generate token"})
+		return
+	}
+
+	c.JSON(200, gin.H{"token": token})
 }
 
 func getProducts(c *gin.Context) { // getProducts возвращает список всех продуктов
@@ -149,7 +216,7 @@ func postOrder(c *gin.Context) { // postOrder добавляет новый за
 			c.JSON(400, gin.H {"error": err.Error()})
 			return
 		}
-		if !isValidStatus(newOrder.Status) {
+		if !IsValidStatus(newOrder.Status) {
 			c.JSON(400, gin.H {"error": "Invalid status"})
 			return
 		}
@@ -210,6 +277,10 @@ func putOrder(c *gin.Context) { // putOrder обновляет данные о �
 		return
 	}
 	var updatedOrder Order
+	if !IsValidStatus(updatedOrder.Status) {
+		c.JSON(400, gin.H {"error": "Invalid status"})
+		return
+	}
 	if err := c.ShouldBindJSON(&updatedOrder); err != nil {
 		c.JSON(400, gin.H{"error": err.Error()})
 	}
@@ -248,8 +319,12 @@ func deleteOrder(c *gin.Context) { // deleteOrder удаляет заказ
 }
 
 func getUsers(c *gin.Context) { // getUsers возвращает данные о пользователях
-	var users []UserRequest
-	db.Model(&UserRequest{}).Select("id","first_name","last_name","address").Scan(&users)
+	var users []User
+	result := db.Find(&users)
+	if result.Error != nil {
+		c.JSON(400, gin.H{"error": result.Error.Error()})
+		return
+	}
 	c.JSON(200, users)
 }
 
@@ -333,27 +408,8 @@ func deleteUser(c *gin.Context) { // deleteUser удаляет пользова�
 	c.JSON(200, gin.H{"message": "User deleted"})
 }
 
-/* func statusValidator(fl validator.FieldLevel) bool {
-	status := fl.Field().String()
-	return validStatuses[status]
-}
-
-func setupValidators() {
-	validate = validator.New()
-	validate.RegisterValidation("status", statusValidator)
-} */
-
-func isValidStatus(status string) bool {
+func IsValidStatus(status string) bool { // IsValidStatus проверяет, корректен ли статус заказа
     return validStatuses[status]
-}
-
-var db *gorm.DB
-// var validate *validator.Validate
-var validStatuses = map[string]bool{
-	"pending": true,
-	"shipped": true,
-	"delivered": true,
-	"cancelled": true,
 }
 
 func main() {
@@ -366,22 +422,25 @@ func main() {
 	}
 	router := gin.Default()
 //	setupValidators()
-
+	router.POST("/login", LoginHandler)
+	authRoutes := router.Group("/auth", AuthMiddleware())
+	{
+		authRoutes.POST("/products", postProduct)
+		authRoutes.PUT("/products/:id", putProduct)
+		authRoutes.DELETE("/products/:id", deleteProduct)
+		authRoutes.POST("/orders", postOrder)
+		authRoutes.PUT("/orders/:id", putOrder)
+		authRoutes.DELETE("/orders/:id", deleteOrder)
+		authRoutes.GET("/users", getUsers)
+		authRoutes.POST("/users", postUser)
+		authRoutes.GET("/users/:id", getUser)
+		authRoutes.PUT("/users/:id", putUser)
+		authRoutes.DELETE("/users/:id", deleteUser)
+	}
 	router.GET("/products", getProducts)
-	router.POST("/products", postProduct)
 	router.GET("/products/:id", getProduct)
-	router.PUT("/products/:id", putProduct)
-	router.DELETE("/products/:id", deleteProduct)
 	router.GET("/orders", getOrders)
-	router.POST("/orders", postOrder)
 	router.GET("/orders/:id", getOrder)
-	router.PUT("/orders/:id", putOrder)
-	router.DELETE("/orders/:id", deleteOrder)
-	router.GET("/users", getUsers)
-	router.POST("/users", postUser)
-	router.GET("/users/:id", getUser)
-	router.PUT("/users/:id", putUser)
-	router.DELETE("/users/:id", deleteUser)
-
+	
 	router.Run(":8080")
 }

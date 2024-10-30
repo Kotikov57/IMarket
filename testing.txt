@@ -1,3 +1,21 @@
-curl -X POST http://localhost:8080/products -H "Content-Type: application/json" -d "{\"id\":7,\"name\":\"Utyug\",\"price\":10,\"quantity\":1}"
-curl -X POST http://localhost:8080/orders -H "Content-Type: application/json" -d "{\"id\":7,\"product_id\":1,\"quantity\":10,\"status\":\"shipped\"}"
-curl -X POST http://localhost:8080/users -H "Content-Type: application/json" -d "{\"id\":6,\"first_name\":\"Eduardo\",\"last_name\":\"Garcia\",\"address\":\"Coconut street, 11\",\"login\":\"sniff_sniff\",\"password\":\"babababebebe\"}"
+Шаблоны ручных тестов написаны для cmd Windows
+
+getProducts: curl -X GET http://localhost:8080/products
+getProduct: curl -X GET http://localhost:8080/products/id
+getOrders: curl -X GET http://localhost:8080/orders
+getOrder: curl -X GET http://localhost:8080/orders/id
+
+Для следующих маршрутов сначала нужно получить JWT-токен подобным образом образом: 
+curl -X POST http://localhost:8080/login -H "Content-Type: application/json" -d "{\"email\":\"sosiska12@gmail.com\",\"password\":\"12345678\"}"
+
+postProduct: curl -X POST http://localhost:8080/auth/products -H "Authorization: Bearer *JWT-Token*" -H "Content-Type: application/json" -d "{\"id\":7,\"name\":\"Utyug\",\"price\":10,\"quantity\":1}"
+putProduct: curl -X PUT http://localhost:8080/auth/products/7 -H "Authorization: Bearer *JWT-Token*" -H "Content-Type: application/json" -d "{\"id\":7,\"name\":\"Baraban\",\"price\":101,\"quantity\":101}"
+deleteProduct: curl -X DELETE http://localhost:8080/auth/products/7 -H "Authorization: Bearer *JWT-Token*"
+
+postOrder: curl -X POST http://localhost:8080/auth/orders -H "Authorization: Bearer *JWT-Token*" -H "Content-Type: application/json" -d "{\"id\":7,\"product_id\":1,\"quantity\":10,\"address\":\"Malaha-Chapalaha street\",\"user_id\":5,\"status\":\"shipped\"}"
+putOrder: curl -X PUT http://localhost:8080/auth/orders/7 -H "Authorization: Bearer *JWT-Token*" -H "Content-Type: application/json" -d "{\"id\":7,\"product_id\":2,\"quantity\":2,\"address\":\"Malaha-Chapalaha street\",\"user_id\":6,\"status\":\"delivered\"}"
+deleteOrder: curl -X DELETE http"//localhost:8080/auth/orders/7 -H "Authorization: Bearer *JWT-Token*"
+
+postUser: curl -X POST http://localhost:8080/auth/users -H "Authorization: Bearer *JWT-Token*" -H "Content-Type: application/json" -d "{\"id\":6,\"first_name\":\"Eduardo\",\"last_name\":\"Garcia\",\"email\":\"sosiska13\",\"password\":\"babababebebe\"}"
+putUser: curl -X PUT http://localhost:8080/auth/users/6 -H "Authorization: Bearer *JWT-Token*" -H "Content-Type: application/json" -d "{\"id\":6,\"first_name\":\"Glebchik\",\"last_name\":\"Dobryakov\",\"email\":\"sosiska14\",\"password\":\"bebebebababa\"}"
+deleteUser: curl -X DELETE http://localhost:8080/auth/users/6 -H "Authorization: Bearer *JWT-Token*"
